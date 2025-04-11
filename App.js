@@ -34,13 +34,27 @@ const App = () => {
                 iconName = focused ? 'cog' : 'cog-outline';
               }
 
+              // You can return any component that you like here!
               return <Icon name={iconName} size={size} color={color} />;
             },
             tabBarActiveTintColor: COLORS.primary,
-            tabBarInactiveTintColor: 'gray',
+            tabBarInactiveTintColor: COLORS.text + '80',
             tabBarStyle: {
               paddingBottom: 5,
               height: 55,
+              borderTopWidth: 1,
+              borderTopColor: COLORS.border + '30',
+              backgroundColor: COLORS.card,
+              elevation: 10,
+              shadowColor: COLORS.text + '20',
+              shadowOffset: { width: 0, height: -2 },
+              shadowOpacity: 0.1,
+              shadowRadius: 3,
+            },
+            tabBarLabelStyle: {
+              fontSize: 12,
+              fontWeight: '500',
+              paddingBottom: 3,
             },
             headerShown: false,
           })}

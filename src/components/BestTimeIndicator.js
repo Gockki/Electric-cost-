@@ -3,6 +3,7 @@ import { View, Text, StyleSheet } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { COLORS, FONTS, SIZES, SHADOWS } from '../constants/theme';
 import { formatCost } from '../utils/calculations';
+import Card from './UI/Card';
 
 const BestTimeIndicator = ({ bestTime, appliance, currentPrice }) => {
   if (!bestTime || !appliance) return null;
@@ -19,10 +20,10 @@ const BestTimeIndicator = ({ bestTime, appliance, currentPrice }) => {
     appliance.duration;
   
   return (
-    <View style={styles.container}>
+    <Card>
       <View style={styles.headerRow}>
         <Icon name="clock-time-five-outline" size={24} color={COLORS.primary} />
-        <Text style={styles.title}>Best Time to Run</Text>
+        <Text style={styles.title}>Best Time to Run {appliance.name}</Text>
       </View>
       
       <View style={styles.timeContainer}>
@@ -36,33 +37,26 @@ const BestTimeIndicator = ({ bestTime, appliance, currentPrice }) => {
       
       {potentialSavings > 0 && (
         <View style={styles.savingsContainer}>
+          <Icon name="cash-plus" size={18} color={COLORS.success} style={styles.savingsIcon} />
           <Text style={styles.savingsText}>
             Potential savings: {formatCost(potentialSavings)}
           </Text>
         </View>
       )}
-    </View>
+    </Card>
   );
 };
 
 const styles = StyleSheet.create({
-  container: {
-    backgroundColor: COLORS.card,
-    borderRadius: SIZES.base * 2,
-    padding: SIZES.medium,
-    marginHorizontal: SIZES.base * 2,
-    marginVertical: SIZES.base,
-    ...SHADOWS.light,
-  },
   headerRow: {
     flexDirection: 'row',
     alignItems: 'center',
     marginBottom: SIZES.base,
   },
   title: {
-    ...FONTS.medium,
     fontSize: SIZES.medium,
     color: COLORS.text,
+    fontWeight: '600',
     marginLeft: SIZES.base,
   },
   timeContainer: {
@@ -70,27 +64,31 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   timeText: {
-    ...FONTS.bold,
     fontSize: SIZES.extraLarge,
     color: COLORS.primary,
+    fontWeight: 'bold',
     marginBottom: SIZES.base / 2,
   },
   priceText: {
-    ...FONTS.regular,
     fontSize: SIZES.font,
     color: COLORS.text,
   },
   savingsContainer: {
-    backgroundColor: COLORS.success + '20', // Light green with opacity
-    borderRadius: SIZES.base,
+    backgroundColor: COLORS.success + '15', // Light green with opacity
+    borderRadius: 12,
     padding: SIZES.base,
     marginTop: SIZES.base,
+    flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
+  },
+  savingsIcon: {
+    marginRight: 8,
   },
   savingsText: {
-    ...FONTS.medium,
     fontSize: SIZES.font,
     color: COLORS.success,
+    fontWeight: '500',
   },
 });
 

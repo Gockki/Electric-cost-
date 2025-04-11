@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
-import { COLORS, FONTS, SIZES, SHADOWS } from '../../constants/theme';
+import { COLORS, SIZES, SHADOWS } from '../../constants/theme';
 import { calculateCost, formatCost } from '../../utils/calculations';
 
 const ActivityCard = ({ appliance, currentPrice, onPress }) => {
@@ -16,9 +16,10 @@ const ActivityCard = ({ appliance, currentPrice, onPress }) => {
     <TouchableOpacity
       style={styles.container}
       onPress={() => onPress && onPress(appliance)}
+      activeOpacity={0.8}
     >
       <View style={styles.iconContainer}>
-        <Icon name={appliance.icon} size={28} color={COLORS.primary} />
+        <Icon name={appliance.icon} size={26} color={COLORS.primary} />
       </View>
       
       <View style={styles.contentContainer}>
@@ -40,18 +41,20 @@ const styles = StyleSheet.create({
   container: {
     flexDirection: 'row',
     backgroundColor: COLORS.card,
-    borderRadius: SIZES.base * 2,
+    borderRadius: 16,
     padding: SIZES.medium,
     marginHorizontal: SIZES.base * 2,
-    marginVertical: SIZES.base,
+    marginVertical: SIZES.base * 0.8,
     alignItems: 'center',
     ...SHADOWS.light,
+    borderWidth: 1,
+    borderColor: COLORS.border + '20', // Very light border
   },
   iconContainer: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    backgroundColor: COLORS.background,
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    backgroundColor: COLORS.primary + '15', // Light primary color with opacity
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: SIZES.medium,
@@ -60,29 +63,28 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   title: {
-    ...FONTS.medium,
     fontSize: SIZES.medium,
     color: COLORS.text,
-    marginBottom: SIZES.base / 2,
+    marginBottom: 4,
+    fontWeight: '600',
   },
   details: {
-    ...FONTS.regular,
     fontSize: SIZES.small,
     color: COLORS.text + '99', // Adding some transparency for lighter text
   },
   costContainer: {
     alignItems: 'flex-end',
+    paddingLeft: SIZES.base,
   },
   costLabel: {
-    ...FONTS.regular,
     fontSize: SIZES.small,
     color: COLORS.text + '99',
-    marginBottom: SIZES.base / 2,
+    marginBottom: 4,
   },
   costValue: {
-    ...FONTS.bold,
     fontSize: SIZES.medium,
     color: COLORS.primary,
+    fontWeight: 'bold',
   },
 });
 

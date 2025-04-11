@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { 
+import {
   View, 
   Text, 
   StyleSheet, 
@@ -7,7 +7,8 @@ import {
   SafeAreaView, 
   StatusBar,
   ActivityIndicator,
-  ScrollView
+  ScrollView,
+  RefreshControl
 } from 'react-native';
 import { COLORS, FONTS, SIZES } from '../constants/theme';
 import PriceDisplay from '../components/UI/PriceDisplay';
@@ -21,29 +22,31 @@ const HomeScreen = () => {
   const [currentPrice, setCurrentPrice] = useState(0);
   const [hourlyPrices, setHourlyPrices] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [selectedAppliance, setSelectedAppliance] = useState(null);
   const [bestTime, setBestTime] = useState(null);
 
+  // Fetch data function
+  const fetchData = async () => {
+    try {
+      setIsLoading(true);
+      // Get current price
+      const price = await getCurrentPrice();
+      setCurrentPrice(price);
+      
+      // Get hourly prices
+      const hourly = await getHourlyPrices();
+      setHourlyPrices(hourly);
+      
+      setIsLoading(false);
+    } catch (error) {
+      console.error('Error fetching electricity price data:', error);
+      setIsLoading(false);
+    }
+  };
+
   useEffect(() => {
     // Fetch electricity price data on component mount
-    const fetchData = async () => {
-      try {
-        setIsLoading(true);
-        // Get current price
-        const price = await getCurrentPrice();
-        setCurrentPrice(price);
-        
-        // Get hourly prices
-        const hourly = await getHourlyPrices();
-        setHourlyPrices(hourly);
-        
-        setIsLoading(false);
-      } catch (error) {
-        console.error('Error fetching electricity price data:', error);
-        setIsLoading(false);
-      }
-    };
-
     fetchData();
     
     // Refresh data every 15 minutes
@@ -51,6 +54,13 @@ const HomeScreen = () => {
     
     return () => clearInterval(refreshInterval);
   }, []);
+
+  // Handle refresh
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await fetchData();
+    setRefreshing(false);
+  };
 
   // Find the best time to run when an appliance is selected
   useEffect(() => {
@@ -83,12 +93,7 @@ const HomeScreen = () => {
       
       <PriceDisplay currentPrice={currentPrice} isLoading={isLoading} />
       
-      {!isLoading && hourlyPrices.length > 0 && (
-        <View style={styles.chartContainer}>
-          <Text style={styles.chartTitle}>Today's Electricity Prices</Text>
-          <PriceChart hourlyPrices={hourlyPrices} />
-        </View>
-      )}
+      <PriceChart hourlyPrices={hourlyPrices} />
       
       {selectedAppliance && (
         <BestTimeIndicator 
@@ -125,6 +130,14 @@ const HomeScreen = () => {
           ListHeaderComponent={ListHeaderComponent}
           showsVerticalScrollIndicator={false}
           contentContainerStyle={styles.listContent}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              colors={[COLORS.primary]}
+              tintColor={COLORS.primary}
+            />
+          }
         />
       )}
     </SafeAreaView>
@@ -142,33 +155,19 @@ const styles = StyleSheet.create({
     paddingBottom: SIZES.medium,
   },
   headerTitle: {
-    ...FONTS.bold,
     fontSize: SIZES.extraLarge,
     color: COLORS.text,
+    fontWeight: 'bold',
   },
   headerSubtitle: {
-    ...FONTS.regular,
     fontSize: SIZES.font,
     color: COLORS.text + '99',
-    marginTop: SIZES.base / 2,
-  },
-  chartContainer: {
-    marginHorizontal: SIZES.base * 2,
-    marginVertical: SIZES.base,
-    padding: SIZES.medium,
-    backgroundColor: COLORS.card,
-    borderRadius: SIZES.base * 2,
-  },
-  chartTitle: {
-    ...FONTS.medium,
-    fontSize: SIZES.font,
-    color: COLORS.text,
-    marginBottom: SIZES.base,
+    marginTop: 4,
   },
   sectionTitle: {
-    ...FONTS.bold,
     fontSize: SIZES.large,
     color: COLORS.text,
+    fontWeight: 'bold',
     marginHorizontal: SIZES.base * 2,
     marginTop: SIZES.large,
     marginBottom: SIZES.base,
@@ -182,7 +181,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   loadingText: {
-    ...FONTS.medium,
     fontSize: SIZES.font,
     color: COLORS.text,
     marginTop: SIZES.medium,

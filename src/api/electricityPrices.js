@@ -1,44 +1,57 @@
 import axios from 'axios';
-import { API_CONFIG } from '../config/apiConfig';
 
-// Fingrid API endpoint for electricity price data
-const FINGRID_API_URL = API_CONFIG.FINGRID_BASE_URL;
-
-// Price variable ID in Fingrid API
-const PRICE_VARIABLE_ID = '248'; // Nord Pool Finland price variable ID
-
-// API key from configuration
-const API_KEY = API_CONFIG.API_KEY;
-
-// Axios instance with auth header
-const fingridApi = axios.create({
-  headers: {
-    'x-api-key': API_KEY,
-  },
-});
+// Base URL for the sahkohinta-api
+const API_BASE_URL = 'https://www.sahkohinta-api.fi/api/v1';
 
 /**
- * Fetch current electricity price from Fingrid API
+ * Fetch current electricity price
  * @returns {Promise} - Resolves to current price in €/kWh
  */
 export const getCurrentPrice = async () => {
   try {
-    const response = await fingridApi.get(`${FINGRID_API_URL}/${PRICE_VARIABLE_ID}/events/json`, {
+    // Get the current hour in Finnish time
+    const now = new Date();
+    const today = now.toISOString().split('T')[0]; // Format: YYYY-MM-DD
+    
+    // Get cheapest hour for today to check if today's data is available
+    const response = await axios.get(`${API_BASE_URL}/halpa`, {
       params: {
-        start_time: new Date().toISOString(),
-        end_time: new Date(Date.now() + 3600000).toISOString(), // 1 hour ahead
-      },
+        tunnit: 1,
+        tulos: 'haja',
+        aikaraja: today
+      }
     });
     
-    // The API returns price in €/MWh, need to divide by 1000 to convert to €/kWh
-    const priceInMWh = response.data[0]?.value || 0;
-    const priceInKWh = priceInMWh / 1000;
+    if (response.data && response.data.length > 0) {
+      // If data is available, find the current hour's price
+      const currentHour = now.getHours();
+      
+      // Get all hours for today
+      const allHoursResponse = await axios.get(`${API_BASE_URL}/halpa`, {
+        params: {
+          tunnit: 24,
+          tulos: 'haja',
+          aikaraja: today
+        }
+      });
+      
+      // Find the current hour's data
+      const currentHourData = allHoursResponse.data.find(item => {
+        const itemHour = new Date(item.aikaleima_suomi).getHours();
+        return itemHour === currentHour;
+      });
+      
+      if (currentHourData) {
+        // Convert from cents/kWh to euros/kWh
+        return parseFloat(currentHourData.hinta) / 100;
+      }
+    }
     
-    return priceInKWh;
+    // If couldn't get current hour price, return a default
+    return 0.12; // Default 12 cents (0.12€) per kWh
   } catch (error) {
     console.error('Error fetching current price:', error);
-    // Return a default price if API call fails
-    return 0.12; // Default 12 cents per kWh
+    return 0.12; // Default price if API call fails
   }
 };
 
@@ -48,29 +61,53 @@ export const getCurrentPrice = async () => {
  */
 export const getHourlyPrices = async () => {
   try {
-    // Get today's date at midnight
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
+    // Get today's date in YYYY-MM-DD format
+    const today = new Date().toISOString().split('T')[0];
     
-    // Get tomorrow's date at midnight
-    const tomorrow = new Date(today);
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    
-    const response = await fingridApi.get(`${FINGRID_API_URL}/${PRICE_VARIABLE_ID}/events/json`, {
+    // Get all 24 hours for today
+    const response = await axios.get(`${API_BASE_URL}/halpa`, {
       params: {
-        start_time: today.toISOString(),
-        end_time: tomorrow.toISOString(),
-      },
+        tunnit: 24, // All hours of the day
+        tulos: 'haja',
+        aikaraja: today
+      }
     });
     
-    // Process and transform the data
-    return response.data.map(item => {
-      const hour = new Date(item.start_time).getHours();
-      // Convert from €/MWh to €/kWh
-      const price = item.value / 1000;
+    if (response.data && response.data.length > 0) {
+      // Convert API response to our format
+      return response.data.map(item => {
+        const hour = new Date(item.aikaleima_suomi).getHours();
+        const price = parseFloat(item.hinta) / 100; // Convert cents to euros
+        
+        return { hour, price };
+      });
+    } else {
+      // If no data available for today, try to get tomorrow's data
+      const tomorrow = new Date();
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      const tomorrowStr = tomorrow.toISOString().split('T')[0];
       
-      return { hour, price };
-    });
+      const tomorrowResponse = await axios.get(`${API_BASE_URL}/halpa`, {
+        params: {
+          tunnit: 24, // All hours of the day
+          tulos: 'haja',
+          aikaraja: tomorrowStr
+        }
+      });
+      
+      if (tomorrowResponse.data && tomorrowResponse.data.length > 0) {
+        // Convert API response to our format
+        return tomorrowResponse.data.map(item => {
+          const hour = new Date(item.aikaleima_suomi).getHours();
+          const price = parseFloat(item.hinta) / 100; // Convert cents to euros
+          
+          return { hour, price };
+        });
+      }
+      
+      // If still no data, throw error to use mock data
+      throw new Error('No hourly price data available');
+    }
   } catch (error) {
     console.error('Error fetching hourly prices:', error);
     
@@ -96,62 +133,52 @@ export const getHourlyPrices = async () => {
  */
 export const getDailyPrices = async () => {
   try {
-    // Get date from 7 days ago
-    const oneWeekAgo = new Date();
-    oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
-    oneWeekAgo.setHours(0, 0, 0, 0);
-    
-    // Get tomorrow's date at midnight
-    const tomorrow = new Date();
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    tomorrow.setHours(0, 0, 0, 0);
-    
-    const response = await fingridApi.get(`${FINGRID_API_URL}/${PRICE_VARIABLE_ID}/events/json`, {
-      params: {
-        start_time: oneWeekAgo.toISOString(),
-        end_time: tomorrow.toISOString(),
-      },
-    });
-    
-    // Process the data to get daily averages
-    const dailyData = [];
     const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    const dailyData = [];
     
-    // Group by day and calculate averages
-    const groupedByDay = response.data.reduce((acc, item) => {
-      const date = new Date(item.start_time);
-      const dayKey = date.toISOString().split('T')[0]; // YYYY-MM-DD format
+    // Get data for each of the last 7 days
+    for (let i = 6; i >= 0; i--) {
+      const date = new Date();
+      date.setDate(date.getDate() - i);
+      const dateStr = date.toISOString().split('T')[0];
       
-      if (!acc[dayKey]) {
-        acc[dayKey] = {
-          day: days[date.getDay()],
-          values: [],
-          date: date, // Store date for sorting
-        };
-      }
-      
-      acc[dayKey].values.push(item.value);
-      return acc;
-    }, {});
-    
-    // Calculate averages and convert to the format we need
-    Object.values(groupedByDay).forEach(day => {
-      const sum = day.values.reduce((a, b) => a + b, 0);
-      const average = sum / day.values.length / 1000; // Convert to €/kWh
-      
-      dailyData.push({
-        day: day.day,
-        average,
-        date: day.date,
+      // Get all hours for this day
+      const response = await axios.get(`${API_BASE_URL}/halpa`, {
+        params: {
+          tunnit: 24, // All hours of the day
+          tulos: 'haja',
+          aikaraja: dateStr
+        }
       });
-    });
+      
+      if (response.data && response.data.length > 0) {
+        // Calculate average price for the day
+        const sum = response.data.reduce((acc, item) => acc + parseFloat(item.hinta), 0);
+        const average = sum / response.data.length / 100; // Convert to €/kWh
+        
+        dailyData.push({
+          day: days[date.getDay()],
+          average,
+          date,
+        });
+      } else {
+        // If no data for this day, add placeholder
+        dailyData.push({
+          day: days[date.getDay()],
+          average: null,
+          date,
+        });
+      }
+    }
     
-    // Sort by date
-    dailyData.sort((a, b) => a.date - b.date);
+    // Filter out days with no data
+    const validData = dailyData.filter(item => item.average !== null);
     
-    // Return only the last 7 days if we have more
-    return dailyData.slice(-7);
-    
+    if (validData.length > 0) {
+      return validData;
+    } else {
+      throw new Error('No daily price data available');
+    }
   } catch (error) {
     console.error('Error fetching daily prices:', error);
     
@@ -170,34 +197,97 @@ export const getDailyPrices = async () => {
  * @returns {Promise} - Resolves to the best starting hour (0-23)
  */
 export const findBestTimeToRun = async (duration = 1) => {
-  // Get hourly prices
-  const hourlyPrices = await getHourlyPrices();
-  
-  let bestStartHour = 0;
-  let lowestTotalCost = Infinity;
-  
-  // Find the consecutive 'duration' hours with the lowest total cost
-  for (let startHour = 0; startHour <= 24 - duration; startHour++) {
-    let totalCost = 0;
+  try {
+    // Get today's date in YYYY-MM-DD format
+    const today = new Date().toISOString().split('T')[0];
     
-    for (let h = 0; h < duration; h++) {
-      const hourData = hourlyPrices.find(data => data.hour === (startHour + h) % 24);
-      if (hourData) {
-        totalCost += hourData.price;
+    // Use the API's built-in functionality for finding cheapest consecutive hours
+    const response = await axios.get(`${API_BASE_URL}/halpa`, {
+      params: {
+        tunnit: duration,
+        tulos: 'sarja', // Get consecutive hours
+        aikaraja: today
+      }
+    });
+    
+    if (response.data && response.data.length > 0) {
+      // Extract start and end hours
+      const startHour = new Date(response.data[0].aikaleima_suomi).getHours();
+      const endHour = (startHour + duration) % 24;
+      
+      // Calculate average price
+      const totalPrice = response.data.reduce((acc, item) => acc + parseFloat(item.hinta), 0);
+      const averagePrice = totalPrice / response.data.length / 100; // Convert to €/kWh
+      
+      return {
+        startHour,
+        endHour,
+        averagePrice,
+      };
+    } else {
+      // Try tomorrow if today's data is not available
+      const tomorrow = new Date();
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      const tomorrowStr = tomorrow.toISOString().split('T')[0];
+      
+      const tomorrowResponse = await axios.get(`${API_BASE_URL}/halpa`, {
+        params: {
+          tunnit: duration,
+          tulos: 'sarja', // Get consecutive hours
+          aikaraja: tomorrowStr
+        }
+      });
+      
+      if (tomorrowResponse.data && tomorrowResponse.data.length > 0) {
+        // Extract start and end hours
+        const startHour = new Date(tomorrowResponse.data[0].aikaleima_suomi).getHours();
+        const endHour = (startHour + duration) % 24;
+        
+        // Calculate average price
+        const totalPrice = tomorrowResponse.data.reduce((acc, item) => acc + parseFloat(item.hinta), 0);
+        const averagePrice = totalPrice / tomorrowResponse.data.length / 100; // Convert to €/kWh
+        
+        return {
+          startHour,
+          endHour,
+          averagePrice,
+        };
+      }
+      
+      throw new Error('Could not find best time to run appliance');
+    }
+  } catch (error) {
+    console.error('Error finding best time to run:', error);
+    
+    // Get hourly prices and calculate manually if API's built-in functionality fails
+    const hourlyPrices = await getHourlyPrices();
+    
+    let bestStartHour = 0;
+    let lowestTotalCost = Infinity;
+    
+    // Find the consecutive 'duration' hours with the lowest total cost
+    for (let startHour = 0; startHour <= 24 - duration; startHour++) {
+      let totalCost = 0;
+      
+      for (let h = 0; h < duration; h++) {
+        const hourData = hourlyPrices.find(data => data.hour === (startHour + h) % 24);
+        if (hourData) {
+          totalCost += hourData.price;
+        }
+      }
+      
+      if (totalCost < lowestTotalCost) {
+        lowestTotalCost = totalCost;
+        bestStartHour = startHour;
       }
     }
     
-    if (totalCost < lowestTotalCost) {
-      lowestTotalCost = totalCost;
-      bestStartHour = startHour;
-    }
+    return {
+      startHour: bestStartHour,
+      endHour: (bestStartHour + duration) % 24,
+      averagePrice: lowestTotalCost / duration,
+    };
   }
-  
-  return {
-    startHour: bestStartHour,
-    endHour: (bestStartHour + duration) % 24,
-    averagePrice: lowestTotalCost / duration,
-  };
 };
 
 export default {
